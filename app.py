@@ -26,14 +26,48 @@ def generate_passenger_locations(num):
 
 # Simplified K-Means implementation (without tol and max_iters)
 def kmeans(data, centroids):
-    # Assign each point to the nearest centroid
-    distances = np.linalg.norm(data[:, None] - centroids, axis=2)
-    labels = np.argmin(distances, axis=1)
+    """
+    Perform K-Means clustering to assign data points to the nearest centroid.
 
-    # Recompute centroids
-    new_centroids = np.array([data[labels == i].mean(axis=0) for i in range(len(centroids))])
+    Parameters:
+    - data: A 2D NumPy array where each row is a data point (e.g., [latitude, longitude]).
+    - centroids: A 2D NumPy array where each row is a centroid (e.g., a taxi location).
 
-    return labels, new_centroids
+    Returns:
+    - labels: An array of labels indicating which cluster each data point belongs to.
+    - new_centroids: The updated centroids after recomputing them based on the data points' assignments.
+    """
+    num_clusters = len(centroids)
+    labels = np.zeros(len(data))  # Initialize an array to hold the labels for each data point
+
+    while True:
+        # Step 1: Assign each data point to the nearest centroid
+        new_labels = []
+        for point in data:
+            distances = []  # List to store distances from the point to each centroid
+            for centroid in centroids:
+                distance = np.linalg.norm(point - centroid)  # Euclidean distance
+                distances.append(distance)
+            new_labels.append(np.argmin(distances))  # Assign the point to the nearest centroid
+        new_labels = np.array(new_labels)
+
+        # Step 2: Update centroids by averaging the points assigned to each centroid
+        new_centroids = []
+        for i in range(num_clusters):
+            cluster_points = data[new_labels == i]  # Get the points assigned to centroid i
+            if len(cluster_points) > 0:  # Prevent division by zero
+                new_centroids.append(cluster_points.mean(axis=0))  # Compute the new centroid
+            else:
+                new_centroids.append(centroids[i])  # If no points are assigned, keep the old centroid
+
+        new_centroids = np.array(new_centroids)
+
+        # Step 3: Check if centroids have changed (convergence condition)
+        if np.all(new_centroids == centroids):
+            break  # If centroids don't change, we have converged
+        centroids = new_centroids  # Update centroids for the next iteration
+
+    return new_labels, new_centroids
 
 @app.route('/submit_coordinates', methods=['POST'])
 def submit_coordinates():
