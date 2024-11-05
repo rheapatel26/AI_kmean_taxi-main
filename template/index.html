@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taxi and Passenger Assignment</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+        table {
+            margin-top: 20px;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Click on the Canvas to Add Taxis</h1>
+<p>Coordinates: <span id="coords"></span></p>
+<p>Click Count: <span id="click-count">0</span></p>
+
+<canvas id="mapCanvas" width="800" height="400"></canvas>
+<button type="button" id="submitBtn" onclick="startFunction()">Start Assignment</button>
+<p id="result"></p>
+<img id="plotImage" src="" alt="Taxi Assignment Plot" style="display:none;">
+
+<!-- Table to display taxi-passenger assignments -->
+<table id="assignmentTable" style="display:none;">
+    <thead>
+        <tr>
+            <th>Taxi</th>
+            <th>Passengers</th>
+        </tr>
+    </thead>
+    <tbody id="assignmentBody"></tbody>
+</table>
+
+<script>
+    const canvas = document.getElementById('mapCanvas');
+    const ctx = canvas.getContext('2d');
+    const coordsDisplay = document.getElementById('coords');
+    const clickCountDisplay = document.getElementById('click-count');
+    const submitButton = document.getElementById('submitBtn');
+    const backgroundImage = new Image();
+    backgroundImage.src = "assets/barca_map.png"; // Adjust the path as needed
+    backgroundImage.onload = function() {
+        ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+    }
+
+    let clickCount = 0;
+
+    function getCoordinates(x, y, width, height) {
+        const invertedY = height - y;
+        const longitude = -73 + ((-74 - -73) * x / width);
+        const latitude = 40 + ((41 - 40) * invertedY / height);
+        return { latitude, longitude };
+    }
+
+    function sendCoordinatesToServer(latitude, longitude, clickCount) {
+        fetch('/submit_coordinates', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ latitude, longitude, clickCount })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log(data.message);
+            if (data.message) {
+                document.getElementById('result').textContent = data.message;
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    canvas.addEventListener('click', function(event) {
+        const rect = canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+        const { latitude, longitude } = getCoordinates(x, y, canvas.width, canvas.height);
+
+        clickCount++;
+        clickCountDisplay.textContent = clickCount;
+
+        coordsDisplay.textContent = `Latitude: ${latitude.toFixed(6)}, Longitude: ${longitude.toFixed(6)}`;
+        ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, 2 * Math.PI);
+        ctx.fill();
+
+        sendCoordinatesToServer(latitude, longitude, clickCount);
+    });
+
+    function startFunction() {
+        fetch('/start_function')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('result').innerHTML = data.message;
+                const plotImage = document.getElementById('plotImage');
+                plotImage.src = data.plot_url; // Set the source to the plot URL
+                plotImage.style.display = 'block'; // Show the image
+
+                // Update the assignments table
+                updateAssignmentsTable(data.assignments);
+            })
+            .catch(error => console.error('Error:', error));
+    }
+
+    function updateAssignmentsTable(assignments) {
+        const assignmentBody = document.getElementById('assignmentBody');
+        assignmentBody.innerHTML = ''; // Clear existing table rows
+        for (const taxi in assignments) {
+            const passengers = assignments[taxi].map(index => `P${index + 1}`).join(', ');
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>Taxi ${parseInt(taxi) + 1}</td><td>${passengers}</td>`;
+            assignmentBody.appendChild(row);
+        }
+        document.getElementById('assignmentTable').style.display = 'table'; // Show the table
+    }
+</script>
+
+</body>
+</html>
